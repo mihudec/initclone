@@ -189,7 +189,7 @@ def apply_metadata(path: Path, mode: int, uid: int, gid: int) -> None:
 def main() -> int:
     config_dir = Path(os.getenv("CONFIG_DIR", "/config"))
     manifest_path = Path(os.getenv("FILES_CONFIG", str(config_dir / "files.yaml")))
-    rclone_config = Path(os.getenv("RCLONE_CONFIG", str(config_dir / "rclone.cfg")))
+    rclone_config = Path(os.getenv("RCLONE_CONFIG", str(config_dir / "rclone.conf")))
     destination_root = Path(os.getenv("DEST_ROOT", "/")).resolve()
 
     try:
@@ -203,7 +203,7 @@ def main() -> int:
         # Projected ConfigMaps are read-only, while OAuth remotes may refresh tokens.
         # Give rclone a private, writable copy for the lifetime of this init run.
         with tempfile.TemporaryDirectory(prefix="initclone-") as temporary:
-            working_config = Path(temporary) / "rclone.cfg"
+            working_config = Path(temporary) / "rclone.conf"
             shutil.copyfile(rclone_config, working_config)
             working_config.chmod(0o600)
             for index, entry in enumerate(entries, start=1):

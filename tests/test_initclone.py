@@ -94,7 +94,7 @@ class MainTests(unittest.TestCase):
             root = Path(temporary).resolve()
             config = root / "config"
             config.mkdir()
-            (config / "rclone.cfg").write_text("[archive]\ntype = s3\n", encoding="utf-8")
+            (config / "rclone.conf").write_text("[archive]\ntype = s3\n", encoding="utf-8")
             (config / "files.yaml").write_text(
                 f"""- bucket: archive
   source: geo-data/databases/GeoLite2.mmdb
@@ -124,7 +124,7 @@ class MainTests(unittest.TestCase):
                 str(root / "output/GeoLite2.mmdb"),
             ])
             self.assertEqual(command[4], "--config")
-            self.assertNotEqual(Path(command[5]), config / "rclone.cfg")
+            self.assertNotEqual(Path(command[5]), config / "rclone.conf")
             metadata.assert_called_once_with(
                 root / "output/GeoLite2.mmdb", 0o644, os.getuid(), os.getgid()
             )

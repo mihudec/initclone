@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: initclone
 data:
-  rclone.cfg: |
+  rclone.conf: |
     [foo]
     type = s3
     provider = AWS

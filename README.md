@@ -6,7 +6,7 @@ requested ownership and permissions.
 
 ## Configuration
 
-Mount a ConfigMap at `/config` containing `rclone.cfg` and `files.yaml`:
+Mount a ConfigMap at `/config` containing `rclone.conf` and `files.yaml`:
 
 ```yaml
 - bucket: foo
@@ -17,7 +17,7 @@ Mount a ConfigMap at `/config` containing `rclone.cfg` and `files.yaml`:
   group: "1000"
 ```
 
-`bucket` is the rclone remote section name from `rclone.cfg`, so this example copies
+`bucket` is the rclone remote section name from `rclone.conf`, so this example copies
 `foo:path_in_bucket`. For object-storage remotes, `source` can include the actual
 bucket or container name, such as `my-s3:database-assets/GeoLite2.mmdb`. `dest` is
 the exact destination path. For a directory, rclone copies its contents into
@@ -32,10 +32,10 @@ operation exits non-zero and prevents the Pod's application containers from
 starting. Partial files are managed by rclone using its normal `.partial` behavior.
 
 See [examples/kubernetes.yaml](examples/kubernetes.yaml) for a complete Pod. Keep
-credentials in a Secret or workload identity; `rclone.cfg` can refer to environment
+credentials in a Secret or workload identity; `rclone.conf` can refer to environment
 credentials as shown in the example.
 
-The image makes a mode-`0600` temporary copy of the read-only `rclone.cfg`, allowing
+The image makes a mode-`0600` temporary copy of the read-only `rclone.conf`, allowing
 rclone to refresh OAuth tokens during the init run without writing to the ConfigMap.
 
 Optional environment variables:
@@ -44,7 +44,7 @@ Optional environment variables:
 | --- | --- | --- |
 | `CONFIG_DIR` | `/config` | Directory containing both configuration files |
 | `FILES_CONFIG` | `/config/files.yaml` | Manifest path override |
-| `RCLONE_CONFIG` | `/config/rclone.cfg` | rclone config path override |
+| `RCLONE_CONFIG` | `/config/rclone.conf` | rclone config path override |
 | `DEST_ROOT` | `/` | Root below which all destinations are resolved |
 | `RCLONE_ARGS` | empty | Additional rclone arguments, shell-split without evaluation |
 | `LOG_LEVEL` | `INFO` | Python logging level |
