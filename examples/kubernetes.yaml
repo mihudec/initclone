@@ -9,7 +9,7 @@ data:
     provider = AWS
     env_auth = true
   files.yaml: |
-    - bucket: foo
+    - remote: foo
       source: path_in_bucket/GeoLite2-City.mmdb
       dest: /shared/GeoLite2-City.mmdb
       mode: "0644"

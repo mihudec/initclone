@@ -1,15 +1,19 @@
-ARG RCLONE_VERSION=1.74.2
-FROM rclone/rclone:${RCLONE_VERSION} AS rclone
+FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=none
+ARG BUILD_DATE=unknown
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY *.go ./
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}" -o /out/initclone .
 
-FROM python:3.13.7-alpine3.22
-
+FROM alpine:3.22
 RUN apk add --no-cache ca-certificates
-COPY --from=rclone /usr/local/bin/rclone /usr/local/bin/rclone
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --disable-pip-version-check -r /tmp/requirements.txt \
-    && rm /tmp/requirements.txt
-COPY initclone.py /usr/local/bin/initclone
-
+COPY --from=build /out/initclone /usr/local/bin/initclone
 # Root is intentional: applying the requested UID/GID to mounted volumes requires it.
 USER 0:0
-ENTRYPOINT ["python3", "/usr/local/bin/initclone"]
+ENTRYPOINT ["/usr/local/bin/initclone"]

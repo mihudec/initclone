@@ -1,6 +1,6 @@
 # initclone
 
-`initclone` is a small init-container image that copies files or directory contents
+`initclone` is a standalone Go binary and init-container image that copies files or directory contents
 from rclone remotes into mounted `emptyDir` or `hostPath` volumes, then applies the
 requested ownership and permissions.
 
@@ -9,7 +9,7 @@ requested ownership and permissions.
 Mount a ConfigMap at `/config` containing `rclone.conf` and `files.yaml`:
 
 ```yaml
-- bucket: foo
+- remote: foo
   source: path_in_bucket
   dest: /path_in_pod
   mode: "0644"
@@ -17,9 +17,11 @@ Mount a ConfigMap at `/config` containing `rclone.conf` and `files.yaml`:
   group: "1000"
 ```
 
-`bucket` is the rclone remote section name from `rclone.conf`, so this example copies
-`foo:path_in_bucket`. For object-storage remotes, `source` can include the actual
-bucket or container name, such as `my-s3:database-assets/GeoLite2.mmdb`. `dest` is
+`remote` is the configured remote section name from `rclone.conf` (for example,
+`foo` for `[foo]`), so this example copies `foo:path_in_bucket`. It is not the
+storage bucket name or the provider type (such as S3 or AWS). For object-storage
+remotes, `source` includes the actual bucket or container name, such as
+`database-assets/GeoLite2.mmdb`. `dest` is
 the exact destination path. For a directory, rclone copies its contents into
 `dest`; it does not delete files already there.
 
@@ -47,7 +49,7 @@ Optional environment variables:
 | `RCLONE_CONFIG` | `/config/rclone.conf` | rclone config path override |
 | `DEST_ROOT` | `/` | Root below which all destinations are resolved |
 | `RCLONE_ARGS` | empty | Additional rclone arguments, shell-split without evaluation |
-| `LOG_LEVEL` | `INFO` | Python logging level |
+| `LOG_LEVEL` | `INFO` | Wrapper logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL or NOTSET |
 
 ## Build and publish
 
@@ -63,9 +65,52 @@ CI tests every pull request and push to `main`. Push a tag such as `v1.0.0` to
 publish multi-architecture `1.0.0`, `1.0`, and `latest` images to this repository's
 GitHub Container Registry package. The workflow generates provenance and an SBOM.
 
-## Why Python
+## Portable binary
 
-The wrapper deliberately uses Python rather than Bash plus `yq`. The manifest is
-configuration with security-sensitive paths and ownership, so typed validation,
-duplicate-key detection, recursive metadata handling, and unit tests are worth the
-small runtime cost. rclone still performs all remote I/O.
+Go 1.27.1 or newer is required to build. rclone 1.74.2 and its storage backends
+are compiled into the executable; Python and a separate rclone installation are
+not needed. All backends are included, so the executable is larger than a wrapper.
+
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/initclone .
+CONFIG_DIR="$PWD/config" DEST_ROOT="$PWD/output" ./bin/initclone
+```
+
+Cross-compile by setting `GOOS=linux` or `GOOS=darwin` and `GOARCH=amd64` or
+`GOARCH=arm64`. Releases include these four binaries and SHA-256 checksums.
+Linux binaries are static and do not require a particular libc. HTTPS remotes
+still need the host's CA certificates. Named users and groups use the host's
+account database; numeric IDs are recommended. Windows is not supported because
+this tool applies Unix ownership and permissions. Changing ownership requires
+appropriate privileges.
+
+In existing `files.yaml` manifests, rename `bucket` to `remote`. The old key is
+no longer accepted. `rclone.conf` and environment variables are unchanged.
+`RCLONE_ARGS` uses shell quoting without executing a shell or expanding variables.
+`LOG_LEVEL` controls initclone messages; use `RCLONE_ARGS="--log-level DEBUG"`
+for transfer diagnostics. Temporary refreshed OAuth tokens are removed at exit,
+as before. Each transfer runs in a child instance of the same executable.
+
+## Development
+
+The Makefile follows the same layout for all four portable builds:
+
+```sh
+make build                # dist/{macos,linux}/{amd64,arm64}/initclone
+make build VERSION=v1.0.0  # Embed version, Git commit, and UTC build date
+make test                 # Unit tests
+make check                # go vet and race-enabled tests
+make clean                # Remove dist/
+```
+
+`COMMIT` and `BUILD_DATE` can also be overridden. Run a built binary with
+`--version` to inspect its build metadata.
+
+To run the local transfer integration test:
+
+```sh
+CGO_ENABLED=0 go build -o bin/initclone .
+INITCLONE_BINARY="$PWD/bin/initclone" go test -run TestBinaryIntegration -v .
+```
+
+The integration test uses a local rclone remote and does not need cloud credentials.
