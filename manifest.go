@@ -15,6 +15,7 @@ import (
 
 type entry struct {
 	Remote, Destination, Path string
+	IdentityFile              string
 	Mode                      uint32
 	UID, GID                  int
 }
@@ -44,6 +45,9 @@ func loadManifest(path, root string) ([]entry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("entry %d: %w", index+1, err)
 		}
+		if result.IdentityFile != "" && !filepath.IsAbs(result.IdentityFile) {
+			result.IdentityFile = filepath.Join(filepath.Dir(path), result.IdentityFile)
+		}
 		if destinations[result.Path] {
 			return nil, fmt.Errorf("duplicate destination: %s", result.Destination)
 		}
@@ -58,7 +62,7 @@ func parseEntry(item *yaml.Node, root string) (entry, error) {
 	if item.Kind != yaml.MappingNode {
 		return result, fmt.Errorf("must be a mapping")
 	}
-	keys := map[string]bool{"remote": true, "source": true, "dest": true, "mode": true, "owner": true, "group": true}
+	keys := map[string]bool{"remote": true, "source": true, "dest": true, "mode": true, "owner": true, "group": true, "identity_file": true}
 	values := map[string]*yaml.Node{}
 	for i := 0; i < len(item.Content); i += 2 {
 		key := item.Content[i]
@@ -80,6 +84,12 @@ func parseEntry(item *yaml.Node, root string) (entry, error) {
 		if node.Kind != yaml.ScalarNode || node.Tag != "!!str" || strings.TrimSpace(node.Value) == "" {
 			return result, fmt.Errorf("%s must be a non-empty string", key)
 		}
+	}
+	if node := values["identity_file"]; node != nil {
+		if node.Kind != yaml.ScalarNode || node.Tag != "!!str" || strings.TrimSpace(node.Value) == "" {
+			return result, fmt.Errorf("identity_file must be a non-empty string")
+		}
+		result.IdentityFile = node.Value
 	}
 	remote, source := values["remote"].Value, values["source"].Value
 	if strings.Contains(remote, ":") || strings.ContainsFunc(remote, unicode.IsSpace) || strings.HasPrefix(remote, "-") {

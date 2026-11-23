@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"syscall"
 
+	"filippo.io/age"
+
 	_ "github.com/rclone/rclone/backend/all"
 	"github.com/rclone/rclone/cmd"
 	_ "github.com/rclone/rclone/cmd/copyto"
@@ -104,6 +106,16 @@ func run(ctx context.Context, getenv func(string) string, output io.Writer, copy
 	if err != nil {
 		return err
 	}
+	// Load all identities before transferring anything, including read-only Secret mounts.
+	identities := make([][]age.Identity, len(entries))
+	for i, entry := range entries {
+		if entry.IdentityFile != "" {
+			identities[i], err = loadIdentities(entry.IdentityFile)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	extra, err := splitArgs(getenv("RCLONE_ARGS"))
 	if err != nil {
 		return err
@@ -139,6 +151,12 @@ func run(ctx context.Context, getenv func(string) string, output io.Writer, copy
 		info("copying %s to %s (%d/%d)", entry.Remote, entry.Path, i+1, len(entries))
 		if err := copy(ctx, entry.Remote, entry.Path, workingConfig, extra); err != nil {
 			return err
+		}
+		if len(identities[i]) != 0 {
+			info("decrypting .age files in %s", entry.Path)
+			if err := decryptFiles(ctx, entry, identities[i]); err != nil {
+				return err
+			}
 		}
 		if err := applyMetadata(entry.Path, entry.Mode, entry.UID, entry.GID); err != nil {
 			return err

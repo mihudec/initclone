@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"filippo.io/age"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +43,7 @@ func TestManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved, _ := filepath.EvalSymlinks(root)
-	want := entry{"archive:data/file", "/output/file", filepath.Join(resolved, "output/file"), 0644, 1234, 5678}
+	want := entry{"archive:data/file", "/output/file", filepath.Join(resolved, "output/file"), "", 0644, 1234, 5678}
 	if len(entries) != 1 || entries[0] != want {
 		t.Fatalf("got %+v, want %+v", entries, want)
 	}
@@ -239,7 +240,14 @@ func TestBinaryIntegration(t *testing.T) {
 	manifest, _ := os.ReadFile(manifestPath)
 	tree := strings.Replace(string(manifest), "data/file", "data/tree", 1)
 	tree = strings.Replace(tree, "/output/file", "/output/tree", 1)
-	writeFile(t, manifestPath, string(manifest)+tree)
+	id, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(env["CONFIG_DIR"], "identity"), id.String())
+	ciphertext := encrypted(t, id, false)
+	writeFile(t, filepath.Join(root, "data/tree/nested/secret.age"), ciphertext)
+	writeFile(t, manifestPath, string(manifest)+tree+"  identity_file: identity\n")
 	writeFile(t, filepath.Join(root, "output/tree/keep"), "keep existing")
 	command := exec.Command(binary)
 	command.Dir = root
@@ -250,7 +258,7 @@ func TestBinaryIntegration(t *testing.T) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("%v\n%s", err, output)
 	}
-	for path, want := range map[string]string{"output/file": "actual rclone transfer", "output/tree/nested/child": "directory contents", "output/tree/keep": "keep existing"} {
+	for path, want := range map[string]string{"output/file": "actual rclone transfer", "output/tree/nested/child": "directory contents", "output/tree/keep": "keep existing", "output/tree/nested/secret": "secret contents", "output/tree/nested/secret.age": ciphertext} {
 		got, err := os.ReadFile(filepath.Join(root, path))
 		if err != nil || string(got) != want {
 			t.Fatalf("%s: %q %v", path, got, err)

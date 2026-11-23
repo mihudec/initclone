@@ -25,11 +25,40 @@ remotes, `source` includes the actual bucket or container name, such as
 the exact destination path. For a directory, rclone copies its contents into
 `dest`; it does not delete files already there.
 
+Add optional `identity_file` to an entry to decrypt every regular `.age` file in
+its destination after copying (recursively for directories):
+
+```yaml
+- remote: foo
+  source: configs/app
+  dest: /etc/app
+  identity_file: /secrets/age-identity.txt
+  mode: "0600"
+  owner: "1000"
+  group: "1000"
+```
+
+Identity paths are local paths; relative paths resolve beside `files.yaml`,
+independently of `DEST_ROOT`. Mount identity files from a Secret. Native age
+identity files are supported (one key per line, with optional comments); SSH,
+plugin, and passphrase-protected identities are not supported. No age executable
+is required. Both binary and ASCII-armored ciphertext are accepted.
+
+`config.yaml.age` produces `config.yaml` alongside it. Original `.age` files and
+their modification times are retained so rclone can skip unchanged ciphertext
+on subsequent runs. Plaintext is regenerated each run and atomically replaces
+any existing regular file only after successful decryption. Both files receive
+the entry's ownership and permissions. Symlinks are not followed; plaintext
+output symlinks and ambiguous names such as `.age` or `file.age.age` are rejected.
+Without `identity_file`, files are copied unchanged. Invalid identities fail
+before any copy; decryption failures stop the run without publishing partial
+plaintext.
+
 Use numeric UID/GID values in Kubernetes unless the named user and group exist in
 the image. A file mode is applied to every copied file. Directories automatically
 gain the corresponding search bits (`0644` becomes `0755` for directories).
 
-The entire manifest is validated before the first copy. A failed copy or metadata
+The entire manifest is validated before the first copy. A failed copy, decryption, or metadata
 operation exits non-zero and prevents the Pod's application containers from
 starting. Partial files are managed by rclone using its normal `.partial` behavior.
 

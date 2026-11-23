@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 — 2026-11-23
+
+- Add optional per-entry `identity_file` for embedded age decryption after copying,
+  retaining ciphertext for subsequent rclone runs and atomically writing plaintext.
+
 ## 0.2.0 — 2026-11-19
 
 ### Breaking changes
